@@ -148,11 +148,43 @@ services:
       - HEALTH_CHECK_PORT=8001
     volumes:
       - ./logs:/app/logs
+      - ./data:/app/data
     networks:
       - crypto-bot-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Kalman Filter Service for Dynamic Hedge Ratio Calculation
+  kalman-filter-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: crypto-bot-kalman-filter
+    command: ["python", "-m", "services.kalman_filter.main"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_CONSUMER_TOPIC=trade-ticks
+      - KAFKA_PRODUCER_TOPIC=signals-hedge-ratio
+      - KAFKA_CONSUMER_GROUP=kalman-filter-service
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - crypto-bot-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import requests; requests.get('http://localhost:8002/health')\" || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
