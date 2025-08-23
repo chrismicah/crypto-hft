@@ -190,6 +190,37 @@ services:
       retries: 3
       start_period: 40s
 
+  # GARCH Volatility Service for Dynamic Threshold Calculation
+  garch-volatility-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: crypto-bot-garch-volatility
+    command: ["python", "-m", "services.garch_model.main"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_CONSUMER_TOPIC=spread-data
+      - KAFKA_PRODUCER_TOPIC=signals-thresholds
+      - KAFKA_CONSUMER_GROUP=garch-volatility-service
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - crypto-bot-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"print('GARCH service running')\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
 volumes:
   zookeeper-data:
   zookeeper-logs:
