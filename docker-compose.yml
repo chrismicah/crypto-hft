@@ -1,6 +1,10 @@
 version: '3.8'
 
 services:
+  # =============================================================================
+  # INFRASTRUCTURE SERVICES
+  # =============================================================================
+  
   # Zookeeper for Kafka
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
@@ -16,6 +20,7 @@ services:
       - zookeeper-logs:/var/lib/zookeeper/log
     networks:
       - crypto-bot-network
+    restart: unless-stopped
 
   # Kafka broker
   kafka:
@@ -58,23 +63,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    restart: unless-stopped
 
-  # Kafka UI for monitoring
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: crypto-bot-kafka-ui
-    depends_on:
-      - kafka
-    ports:
-      - "8080:8080"
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
-    networks:
-      - crypto-bot-network
-
-  # Redis for caching (optional)
+  # Redis for caching and service registry
   redis:
     image: redis:7-alpine
     container_name: crypto-bot-redis
@@ -85,15 +76,21 @@ services:
     networks:
       - crypto-bot-network
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
 
-  # Prometheus for metrics
+  # =============================================================================
+  # MONITORING SERVICES
+  # =============================================================================
+
+  # Prometheus for metrics collection
   prometheus:
     image: prom/prometheus:latest
     container_name: crypto-bot-prometheus
     ports:
       - "9090:9090"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -102,8 +99,10 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--storage.tsdb.retention.time=200h'
       - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
     networks:
       - crypto-bot-network
+    restart: unless-stopped
 
   # AlertManager for handling alerts
   alertmanager:
@@ -120,6 +119,8 @@ services:
       - '--web.external-url=http://localhost:9093'
     networks:
       - crypto-bot-network
+    depends_on:
+      - prometheus
     restart: unless-stopped
 
   # Grafana for visualization
@@ -198,22 +199,202 @@ services:
       - crypto-bot-network
     restart: unless-stopped
 
-  # Risk Manager Service for Changepoint Detection
-  risk-manager-service:
+  # Kafka UI for monitoring
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: crypto-bot-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - crypto-bot-network
+    restart: unless-stopped
+
+  # =============================================================================
+  # HFT MICROSERVICES
+  # =============================================================================
+
+  # Ingestion Service for Real-time Market Data
+  ingestion-service:
     build:
       context: .
-      dockerfile: Dockerfile
-      target: production
-    container_name: crypto-bot-risk-manager
-    command: ["python", "-m", "services.risk_manager.main"]
+      dockerfile: services/ingestion/Dockerfile
+    container_name: crypto-bot-ingestion
     depends_on:
       kafka:
         condition: service_healthy
       redis:
         condition: service_started
     ports:
-      - "8002:8002"  # Health check
+      - "8000:8000"  # Metrics
+    environment:
+      - BINANCE_API_KEY=${BINANCE_API_KEY:-}
+      - BINANCE_SECRET_KEY=${BINANCE_SECRET_KEY:-}
+      - BINANCE_TESTNET=${BINANCE_TESTNET:-true}
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_TOPIC_ORDER_BOOK=order_book_updates
+      - KAFKA_TOPIC_TRADE_TICKS=trade-ticks
+      - KAFKA_CLIENT_ID=ingestion-service
+      - SYMBOLS=${SYMBOLS:-BTCUSDT,ETHUSDT,ADAUSDT}
+      - ORDER_BOOK_DEPTH=${ORDER_BOOK_DEPTH:-20}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+      - METRICS_PORT=8000
+      - SERVICE_NAME=ingestion
+      - SERVICE_VERSION=1.0.0
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - crypto-bot-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # Kalman Filter Service for Dynamic Hedge Ratio Calculation
+  kalman-filter-service:
+    build:
+      context: .
+      dockerfile: services/kalman_filter/Dockerfile
+    container_name: crypto-bot-kalman-filter
+    depends_on:
+      kafka:
+        condition: service_healthy
+      ingestion-service:
+        condition: service_started
+    ports:
+      - "8001:8001"  # Metrics
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_CONSUMER_TOPIC=trade-ticks
+      - KAFKA_PRODUCER_TOPIC=signals-hedge-ratio
+      - KAFKA_CONSUMER_GROUP=kalman-filter-service
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+      - METRICS_PORT=8001
+      - SERVICE_NAME=kalman-filter
+      - SERVICE_VERSION=1.0.0
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - crypto-bot-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # GARCH Volatility Service for Dynamic Threshold Calculation
+  garch-volatility-service:
+    build:
+      context: .
+      dockerfile: services/garch_model/Dockerfile
+    container_name: crypto-bot-garch-volatility
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kalman-filter-service:
+        condition: service_started
+    ports:
+      - "8002:8002"  # Metrics
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_CONSUMER_TOPIC=spread-data
+      - KAFKA_PRODUCER_TOPIC=signals-thresholds
+      - KAFKA_CONSUMER_GROUP=garch-volatility-service
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+      - METRICS_PORT=8002
+      - SERVICE_NAME=garch-model
+      - SERVICE_VERSION=1.0.0
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - crypto-bot-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Execution Service for Trading Strategy Orchestration
+  execution-service:
+    build:
+      context: .
+      dockerfile: services/execution/Dockerfile
+    container_name: crypto-bot-execution
+    depends_on:
+      kafka:
+        condition: service_healthy
+      garch-volatility-service:
+        condition: service_started
+      kalman-filter-service:
+        condition: service_started
+    ports:
       - "8003:8003"  # Metrics
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_CONSUMER_TOPICS=order_book_updates,signals-hedge-ratio,signals-thresholds,trading-halt
+      - KAFKA_PRODUCER_TOPICS=spread-data,trade-orders
+      - KAFKA_CONSUMER_GROUP=execution-service
+      - BINANCE_API_KEY=${BINANCE_API_KEY:-}
+      - BINANCE_SECRET_KEY=${BINANCE_SECRET_KEY:-}
+      - BINANCE_TESTNET=${BINANCE_TESTNET:-true}
+      - DATABASE_URL=sqlite:///data/trading.db
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+      - METRICS_PORT=8003
+      - SERVICE_NAME=execution
+      - SERVICE_VERSION=1.0.0
+      # Risk management settings
+      - MAX_POSITION_SIZE=${MAX_POSITION_SIZE:-10000}
+      - MAX_DAILY_LOSS=${MAX_DAILY_LOSS:-5000}
+      - MAX_DRAWDOWN_PERCENT=${MAX_DRAWDOWN_PERCENT:-10}
+      - KELLY_LOOKBACK_DAYS=${KELLY_LOOKBACK_DAYS:-30}
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - crypto-bot-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Risk Manager Service for Changepoint Detection
+  risk-manager-service:
+    build:
+      context: .
+      dockerfile: services/risk_manager/Dockerfile
+    container_name: crypto-bot-risk-manager
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      execution-service:
+        condition: service_started
+    ports:
+      - "8004:8004"  # Metrics
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - KAFKA_SPREAD_TOPIC=spread-data
@@ -230,10 +411,9 @@ services:
       - MIN_HALT_DURATION_MINUTES=5
       - MAX_HALT_DURATION_HOURS=2
       - RECOVERY_PROBABILITY_THRESHOLD=0.2
-      - HEALTH_CHECK_PORT=8002
-      - METRICS_PORT=8003
+      - METRICS_PORT=8004
       - REDIS_URL=redis://redis:6379
-      - SERVICE_NAME=risk-manager-service
+      - SERVICE_NAME=risk-manager
       - SERVICE_VERSION=1.0.0
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - LOG_FORMAT=json
@@ -243,165 +423,38 @@ services:
     networks:
       - crypto-bot-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8002/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
 
-  # Ingestion Service for Real-time Market Data
-  ingestion-service:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
-    container_name: crypto-bot-ingestion
-    command: ["python", "-m", "services.ingestion.main"]
-    depends_on:
-      kafka:
-        condition: service_healthy
-      redis:
-        condition: service_started
-    ports:
-      - "8000:8000"  # Prometheus metrics
-      - "8001:8001"  # Health check
-    environment:
-      - BINANCE_API_KEY=${BINANCE_API_KEY}
-      - BINANCE_SECRET_KEY=${BINANCE_SECRET_KEY}
-      - BINANCE_TESTNET=${BINANCE_TESTNET:-true}
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - KAFKA_TOPIC_ORDER_BOOK=order_book_updates
-      - KAFKA_TOPIC_TRADE_TICKS=trade-ticks
-      - KAFKA_CLIENT_ID=ingestion-service
-      - SYMBOLS=${SYMBOLS:-BTCUSDT,ETHUSDT,ADAUSDT}
-      - ORDER_BOOK_DEPTH=${ORDER_BOOK_DEPTH:-20}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - LOG_FORMAT=json
-      - PROMETHEUS_PORT=8000
-      - HEALTH_CHECK_PORT=8001
-      - SERVICE_NAME=ingestion-service
-      - SERVICE_VERSION=1.0.0
-      - REDIS_URL=redis://redis:6379
-    volumes:
-      - ./logs:/app/logs
-      - ./data:/app/data
-    networks:
-      - crypto-bot-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # Kalman Filter Service for Dynamic Hedge Ratio Calculation
-  kalman-filter-service:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
-    container_name: crypto-bot-kalman-filter
-    command: ["python", "-m", "services.kalman_filter.main"]
-    depends_on:
-      kafka:
-        condition: service_healthy
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - KAFKA_CONSUMER_TOPIC=trade-ticks
-      - KAFKA_PRODUCER_TOPIC=signals-hedge-ratio
-      - KAFKA_CONSUMER_GROUP=kalman-filter-service
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - LOG_FORMAT=json
-    volumes:
-      - ./logs:/app/logs
-      - ./data:/app/data
-    networks:
-      - crypto-bot-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import requests; requests.get('http://localhost:8002/health')\" || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # GARCH Volatility Service for Dynamic Threshold Calculation
-  garch-volatility-service:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
-    container_name: crypto-bot-garch-volatility
-    command: ["python", "-m", "services.garch_model.main"]
-    depends_on:
-      kafka:
-        condition: service_healthy
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - KAFKA_CONSUMER_TOPIC=spread-data
-      - KAFKA_PRODUCER_TOPIC=signals-thresholds
-      - KAFKA_CONSUMER_GROUP=garch-volatility-service
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - LOG_FORMAT=json
-    volumes:
-      - ./logs:/app/logs
-      - ./data:/app/data
-    networks:
-      - crypto-bot-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"print('GARCH service running')\" || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-
-  # Execution Service for Trading Strategy Orchestration
-  execution-service:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: production
-    container_name: crypto-bot-execution
-    command: ["python", "-m", "services.execution.main"]
-    depends_on:
-      kafka:
-        condition: service_healthy
-      garch-volatility-service:
-        condition: service_started
-      kalman-filter-service:
-        condition: service_started
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
-      - BINANCE_API_KEY=${BINANCE_API_KEY}
-      - BINANCE_SECRET_KEY=${BINANCE_SECRET_KEY}
-      - BINANCE_TESTNET=${BINANCE_TESTNET:-true}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - LOG_FORMAT=json
-    volumes:
-      - ./logs:/app/logs
-      - ./data:/app/data
-    networks:
-      - crypto-bot-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"print('Execution service running')\" || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
+# =============================================================================
+# VOLUMES
+# =============================================================================
 volumes:
   zookeeper-data:
+    driver: local
   zookeeper-logs:
+    driver: local
   kafka-data:
+    driver: local
   redis-data:
+    driver: local
   prometheus-data:
+    driver: local
   grafana-data:
+    driver: local
   alertmanager-data:
+    driver: local
 
+# =============================================================================
+# NETWORKS
+# =============================================================================
 networks:
   crypto-bot-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

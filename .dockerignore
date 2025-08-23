@@ -1,36 +1,36 @@
-# Git
-.git
-.gitignore
-
 # Python
-__pycache__
-*.pyc
-*.pyo
-*.pyd
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
 .Python
-env
-pip-log.txt
-pip-delete-this-directory.txt
-.tox
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-.git
-.mypy_cache
-.pytest_cache
-.hypothesis
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
 # Virtual environments
+.env
+.venv
+env/
 venv/
 ENV/
-env/
-.venv/
+env.bak/
+venv.bak/
 
-# IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
@@ -46,26 +46,40 @@ env/
 ehthumbs.db
 Thumbs.db
 
-# Project specific
-logs/
-*.log
-.env
-config.env
-htmlcov/
-.coverage
-
-# Docker
-Dockerfile*
-docker-compose*
-.dockerignore
+# Git
+.git/
+.gitignore
 
 # Documentation
-README.md
+*.md
 docs/
 
 # Tests
 tests/
-pytest.ini
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
 
-# Monitoring
+# Jupyter
+.ipynb_checkpoints
+
+# Local data
+data/
+logs/
+*.log
+*.db
+*.sqlite
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Monitoring (not needed in service containers)
 monitoring/
+
+# Temporary files
+tmp/
+temp/
+*.tmp

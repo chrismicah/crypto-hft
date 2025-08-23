@@ -1,0 +1,242 @@
+version: '3.8'
+
+# Production overrides for docker-compose.yml
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up
+
+services:
+  # =============================================================================
+  # PRODUCTION INFRASTRUCTURE OVERRIDES
+  # =============================================================================
+  
+  kafka:
+    environment:
+      # Production Kafka settings
+      KAFKA_LOG_RETENTION_HOURS: 168  # 7 days
+      KAFKA_LOG_SEGMENT_BYTES: 536870912  # 512MB
+      KAFKA_NUM_PARTITIONS: 6
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+      KAFKA_MIN_INSYNC_REPLICAS: 2
+      KAFKA_UNCLEAN_LEADER_ELECTION_ENABLE: 'false'
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+      # JVM settings for production
+      KAFKA_HEAP_OPTS: "-Xmx2G -Xms2G"
+      KAFKA_JVM_PERFORMANCE_OPTS: "-server -XX:+UseG1GC -XX:MaxGCPauseMillis=20 -XX:InitiatingHeapOccupancyPercent=35"
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+
+  redis:
+    command: redis-server --appendonly yes --maxmemory 1gb --maxmemory-policy allkeys-lru --tcp-keepalive 60
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  prometheus:
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=720h'  # 30 days
+      - '--storage.tsdb.retention.size=50GB'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--query.max-concurrency=50'
+      - '--query.timeout=2m'
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.0'
+
+  grafana:
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel,grafana-clock-panel
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://localhost:3000}
+      - GF_SECURITY_SECRET_KEY=${GRAFANA_SECRET_KEY:-your-secret-key-here}
+      - GF_DATABASE_TYPE=sqlite3
+      - GF_DATABASE_PATH=/var/lib/grafana/grafana.db
+      - GF_SESSION_PROVIDER=memory
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # =============================================================================
+  # PRODUCTION HFT SERVICE OVERRIDES
+  # =============================================================================
+
+  ingestion-service:
+    environment:
+      - LOG_LEVEL=WARNING  # Reduce log noise in production
+      - SYMBOLS=${SYMBOLS:-BTCUSDT,ETHUSDT,ADAUSDT,BNBUSDT,SOLUSDT}
+      - ORDER_BOOK_DEPTH=${ORDER_BOOK_DEPTH:-50}
+      - WEBSOCKET_PING_INTERVAL=20
+      - WEBSOCKET_PING_TIMEOUT=10
+      - MAX_RECONNECT_ATTEMPTS=10
+      - RECONNECT_DELAY=5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+
+  kalman-filter-service:
+    environment:
+      - LOG_LEVEL=WARNING
+      - KALMAN_PROCESS_NOISE=1e-5
+      - KALMAN_OBSERVATION_NOISE=1e-3
+      - KALMAN_INITIAL_STATE_COVARIANCE=1.0
+      - BATCH_SIZE=${KALMAN_BATCH_SIZE:-100}
+      - UPDATE_FREQUENCY_MS=${KALMAN_UPDATE_FREQ:-1000}
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.5'
+        reservations:
+          memory: 1G
+          cpus: '1.0'
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+
+  garch-volatility-service:
+    environment:
+      - LOG_LEVEL=WARNING
+      - GARCH_WINDOW_SIZE=${GARCH_WINDOW:-500}
+      - GARCH_UPDATE_FREQUENCY_MS=${GARCH_UPDATE_FREQ:-5000}
+      - GARCH_MIN_OBSERVATIONS=${GARCH_MIN_OBS:-100}
+      - VOLATILITY_FORECAST_HORIZON=${VOL_FORECAST_HORIZON:-1}
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '1.0'
+      restart_policy:
+        condition: on-failure
+        delay: 15s
+        max_attempts: 3
+        window: 120s
+
+  execution-service:
+    environment:
+      - LOG_LEVEL=INFO  # Keep INFO for trading decisions
+      - MAX_POSITION_SIZE=${MAX_POSITION_SIZE:-50000}
+      - MAX_DAILY_LOSS=${MAX_DAILY_LOSS:-10000}
+      - MAX_DRAWDOWN_PERCENT=${MAX_DRAWDOWN_PERCENT:-15}
+      - KELLY_LOOKBACK_DAYS=${KELLY_LOOKBACK_DAYS:-60}
+      - ORDER_TIMEOUT_SECONDS=${ORDER_TIMEOUT:-30}
+      - MAX_SLIPPAGE_BPS=${MAX_SLIPPAGE_BPS:-10}
+      - POSITION_SIZE_MULTIPLIER=${POSITION_SIZE_MULT:-1.0}
+      - ENABLE_PAPER_TRADING=${ENABLE_PAPER_TRADING:-true}
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+          cpus: '1.0'
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 5
+        window: 300s
+
+  risk-manager-service:
+    environment:
+      - LOG_LEVEL=INFO
+      - BOCD_HAZARD_RATE=${BOCD_HAZARD_RATE:-0.002}  # More conservative
+      - WARNING_THRESHOLD=${WARNING_THRESHOLD:-0.3}
+      - HALT_THRESHOLD=${HALT_THRESHOLD:-0.5}
+      - CRITICAL_THRESHOLD=${CRITICAL_THRESHOLD:-0.8}
+      - MIN_HALT_DURATION_MINUTES=${MIN_HALT_DURATION:-10}
+      - MAX_HALT_DURATION_HOURS=${MAX_HALT_DURATION:-4}
+      - RECOVERY_PROBABILITY_THRESHOLD=${RECOVERY_THRESHOLD:-0.1}
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.5'
+        reservations:
+          memory: 1G
+          cpus: '1.0'
+      restart_policy:
+        condition: on-failure
+        delay: 20s
+        max_attempts: 3
+        window: 180s
+
+  # =============================================================================
+  # PRODUCTION MONITORING OVERRIDES
+  # =============================================================================
+
+  node-exporter:
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+          cpus: '0.2'
+
+  cadvisor:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
+
+  streamlit-app:
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # Remove Kafka UI in production for security
+  kafka-ui:
+    profiles:
+      - debug

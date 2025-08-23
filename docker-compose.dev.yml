@@ -1,0 +1,204 @@
+version: '3.8'
+
+# Development overrides for docker-compose.yml
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  # =============================================================================
+  # DEVELOPMENT INFRASTRUCTURE OVERRIDES
+  # =============================================================================
+  
+  kafka:
+    environment:
+      # Development Kafka settings - faster startup, less durability
+      KAFKA_LOG_RETENTION_HOURS: 2
+      KAFKA_LOG_SEGMENT_BYTES: 104857600  # 100MB
+      KAFKA_NUM_PARTITIONS: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_LOG_FLUSH_INTERVAL_MESSAGES: 1
+      KAFKA_LOG_FLUSH_INTERVAL_MS: 100
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+      # Mount local Kafka config for easy debugging
+      - ./config/kafka:/etc/kafka-local:ro
+
+  redis:
+    command: redis-server --appendonly no --maxmemory 128mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"  # Expose Redis for debugging
+
+  prometheus:
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml
+      - prometheus-data:/prometheus
+      # Mount local config for hot reloading
+      - ./monitoring/prometheus:/etc/prometheus-local:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=24h'  # Short retention for dev
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+      - '--log.level=debug'
+
+  grafana:
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=true
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel,grafana-worldmap-panel
+      - GF_LOG_LEVEL=debug
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+      # Mount local dashboards for development
+      - ./monitoring/grafana:/etc/grafana-local:ro
+
+  # =============================================================================
+  # DEVELOPMENT HFT SERVICE OVERRIDES
+  # =============================================================================
+
+  ingestion-service:
+    environment:
+      - LOG_LEVEL=DEBUG
+      - SYMBOLS=BTCUSDT,ETHUSDT  # Fewer symbols for dev
+      - ORDER_BOOK_DEPTH=10
+      - WEBSOCKET_PING_INTERVAL=30
+      - ENABLE_DEBUG_LOGGING=true
+      - KAFKA_DEBUG=true
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      # Mount source code for hot reloading (if using dev container)
+      - ./services/ingestion:/app/services/ingestion:ro
+      - ./common:/app/common:ro
+    ports:
+      - "8000:8000"  # Expose metrics
+      - "9000:9000"  # Debug port
+
+  kalman-filter-service:
+    environment:
+      - LOG_LEVEL=DEBUG
+      - KALMAN_PROCESS_NOISE=1e-4  # More noise for testing
+      - KALMAN_OBSERVATION_NOISE=1e-2
+      - BATCH_SIZE=10  # Smaller batches for faster feedback
+      - UPDATE_FREQUENCY_MS=500
+      - ENABLE_DEBUG_LOGGING=true
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./services/kalman_filter:/app/services/kalman_filter:ro
+      - ./common:/app/common:ro
+    ports:
+      - "8001:8001"  # Expose metrics
+      - "9001:9001"  # Debug port
+
+  garch-volatility-service:
+    environment:
+      - LOG_LEVEL=DEBUG
+      - GARCH_WINDOW_SIZE=100  # Smaller window for faster testing
+      - GARCH_UPDATE_FREQUENCY_MS=2000
+      - GARCH_MIN_OBSERVATIONS=20
+      - ENABLE_DEBUG_LOGGING=true
+      - ENABLE_MODEL_DIAGNOSTICS=true
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./services/garch_model:/app/services/garch_model:ro
+      - ./common:/app/common:ro
+    ports:
+      - "8002:8002"  # Expose metrics
+      - "9002:9002"  # Debug port
+
+  execution-service:
+    environment:
+      - LOG_LEVEL=DEBUG
+      - MAX_POSITION_SIZE=1000  # Small positions for testing
+      - MAX_DAILY_LOSS=100
+      - MAX_DRAWDOWN_PERCENT=5
+      - KELLY_LOOKBACK_DAYS=7
+      - ENABLE_PAPER_TRADING=true
+      - ENABLE_DEBUG_LOGGING=true
+      - BINANCE_TESTNET=true
+      - ORDER_TIMEOUT_SECONDS=10
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./services/execution:/app/services/execution:ro
+      - ./common:/app/common:ro
+    ports:
+      - "8003:8003"  # Expose metrics
+      - "9003:9003"  # Debug port
+
+  risk-manager-service:
+    environment:
+      - LOG_LEVEL=DEBUG
+      - BOCD_HAZARD_RATE=0.01  # Higher rate for testing
+      - WARNING_THRESHOLD=0.2
+      - HALT_THRESHOLD=0.4
+      - CRITICAL_THRESHOLD=0.6
+      - MIN_HALT_DURATION_MINUTES=1  # Short halts for testing
+      - MAX_HALT_DURATION_HOURS=1
+      - ENABLE_DEBUG_LOGGING=true
+      - ENABLE_BOCD_DIAGNOSTICS=true
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./services/risk_manager:/app/services/risk_manager:ro
+      - ./common:/app/common:ro
+    ports:
+      - "8004:8004"  # Expose metrics
+      - "9004:9004"  # Debug port
+
+  # =============================================================================
+  # DEVELOPMENT TOOLS
+  # =============================================================================
+
+  # Jupyter notebook for analysis
+  jupyter:
+    image: jupyter/scipy-notebook:latest
+    container_name: crypto-bot-jupyter
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - JUPYTER_TOKEN=crypto-bot-dev
+    volumes:
+      - ./notebooks:/home/jovyan/work
+      - ./data:/home/jovyan/work/data:ro
+      - ./backtester:/home/jovyan/work/backtester:ro
+    networks:
+      - crypto-bot-network
+    profiles:
+      - dev-tools
+
+  # Database admin tool
+  adminer:
+    image: adminer:latest
+    container_name: crypto-bot-adminer
+    ports:
+      - "8085:8080"
+    networks:
+      - crypto-bot-network
+    profiles:
+      - dev-tools
+
+  # Redis admin tool
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: crypto-bot-redis-commander
+    ports:
+      - "8086:8081"
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    networks:
+      - crypto-bot-network
+    depends_on:
+      - redis
+    profiles:
+      - dev-tools
