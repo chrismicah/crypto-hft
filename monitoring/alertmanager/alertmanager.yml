@@ -1,0 +1,175 @@
+# AlertManager configuration for HFT system
+
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'hft-alerts@crypto-bot.local'
+  smtp_auth_username: ''
+  smtp_auth_password: ''
+
+# Templates for alert notifications
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Route tree for alert routing
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'default-receiver'
+  routes:
+    # Critical trading alerts - immediate notification
+    - match:
+        severity: critical
+        category: trading
+      receiver: 'critical-trading-alerts'
+      group_wait: 0s
+      repeat_interval: 5m
+
+    # Critical system alerts
+    - match:
+        severity: critical
+        category: system
+      receiver: 'critical-system-alerts'
+      group_wait: 5s
+      repeat_interval: 15m
+
+    # Risk management alerts
+    - match:
+        category: risk
+      receiver: 'risk-alerts'
+      group_wait: 5s
+      repeat_interval: 30m
+
+    # Performance alerts
+    - match:
+        category: performance
+      receiver: 'performance-alerts'
+      group_wait: 30s
+      repeat_interval: 1h
+
+    # Data quality alerts
+    - match:
+        category: data
+      receiver: 'data-alerts'
+      group_wait: 15s
+      repeat_interval: 30m
+
+# Inhibition rules to prevent alert spam
+inhibit_rules:
+  # Inhibit any warning if the same alert is critical
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'service']
+
+  # Inhibit service-specific alerts if service is down
+  - source_match:
+      alertname: 'ServiceDown'
+    target_match_re:
+      service: '.*'
+    equal: ['service']
+
+# Receivers define how to send notifications
+receivers:
+  - name: 'default-receiver'
+    webhook_configs:
+      - url: 'http://localhost:9093/webhook'
+        send_resolved: true
+
+  - name: 'critical-trading-alerts'
+    # Slack notifications for critical trading issues
+    slack_configs:
+      - api_url: 'YOUR_SLACK_WEBHOOK_URL_HERE'
+        channel: '#hft-critical-alerts'
+        title: '🚨 CRITICAL TRADING ALERT'
+        text: |
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Service:* {{ .GroupLabels.service }}
+          *Severity:* {{ .GroupLabels.severity }}
+          *Summary:* {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+          *Description:* {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+        send_resolved: true
+        title_link: 'http://localhost:3000/d/hft-trading-dashboard'
+    
+    # Email notifications for critical trading issues
+    email_configs:
+      - to: 'trading-team@crypto-bot.local'
+        subject: '🚨 CRITICAL HFT Trading Alert: {{ .GroupLabels.alertname }}'
+        body: |
+          Critical trading alert detected in HFT system:
+          
+          Alert: {{ .GroupLabels.alertname }}
+          Service: {{ .GroupLabels.service }}
+          Severity: {{ .GroupLabels.severity }}
+          
+          {{ range .Alerts }}
+          Summary: {{ .Annotations.summary }}
+          Description: {{ .Annotations.description }}
+          {{ end }}
+          
+          Dashboard: http://localhost:3000/d/hft-trading-dashboard
+          Prometheus: http://localhost:9090
+        send_resolved: true
+
+  - name: 'critical-system-alerts'
+    slack_configs:
+      - api_url: 'YOUR_SLACK_WEBHOOK_URL_HERE'
+        channel: '#hft-system-alerts'
+        title: '⚠️ CRITICAL SYSTEM ALERT'
+        text: |
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Service:* {{ .GroupLabels.service }}
+          *Summary:* {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+        send_resolved: true
+
+  - name: 'risk-alerts'
+    slack_configs:
+      - api_url: 'YOUR_SLACK_WEBHOOK_URL_HERE'
+        channel: '#hft-risk-alerts'
+        title: '🛡️ RISK MANAGEMENT ALERT'
+        text: |
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Service:* {{ .GroupLabels.service }}
+          *Summary:* {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+        send_resolved: true
+
+  - name: 'performance-alerts'
+    slack_configs:
+      - api_url: 'YOUR_SLACK_WEBHOOK_URL_HERE'
+        channel: '#hft-performance'
+        title: '📊 PERFORMANCE ALERT'
+        text: |
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Service:* {{ .GroupLabels.service }}
+          *Summary:* {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+        send_resolved: true
+
+  - name: 'data-alerts'
+    slack_configs:
+      - api_url: 'YOUR_SLACK_WEBHOOK_URL_HERE'
+        channel: '#hft-data-quality'
+        title: '📡 DATA QUALITY ALERT'
+        text: |
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Source:* {{ .GroupLabels.source }}
+          *Summary:* {{ range .Alerts }}{{ .Annotations.summary }}{{ end }}
+        send_resolved: true
+
+# Webhook configurations for custom integrations
+# webhook_configs:
+#   - url: 'http://your-webhook-service:8080/alerts'
+#     send_resolved: true
+#     http_config:
+#       basic_auth:
+#         username: 'webhook_user'
+#         password: 'webhook_password'
+
+# PagerDuty integration for critical alerts
+# pagerduty_configs:
+#   - routing_key: 'YOUR_PAGERDUTY_INTEGRATION_KEY'
+#     description: 'HFT System Alert: {{ .GroupLabels.alertname }}'
+#     severity: '{{ .GroupLabels.severity }}'
+#     client: 'HFT Crypto Bot'
+#     client_url: 'http://localhost:3000'

@@ -1,0 +1,112 @@
+# Prometheus configuration for HFT system monitoring
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'hft-crypto-bot'
+    environment: 'development'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+rule_files:
+  - "alert_rules.yml"
+  - "recording_rules.yml"
+
+# Scrape configuration
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # HFT Services
+  - job_name: 'hft-ingestion-service'
+    static_configs:
+      - targets: ['ingestion-service:8001']
+    scrape_interval: 5s  # High frequency for market data
+    metrics_path: '/metrics'
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      format: ['prometheus']
+
+  - job_name: 'hft-kalman-filter-service'
+    static_configs:
+      - targets: ['kalman-filter-service:8002']
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    scrape_timeout: 10s
+
+  - job_name: 'hft-garch-model-service'
+    static_configs:
+      - targets: ['garch-model-service:8003']
+    scrape_interval: 10s
+    metrics_path: '/metrics'
+    scrape_timeout: 10s
+
+  - job_name: 'hft-execution-service'
+    static_configs:
+      - targets: ['execution-service:8004']
+    scrape_interval: 5s  # High frequency for trading metrics
+    metrics_path: '/metrics'
+    scrape_timeout: 10s
+    honor_labels: true
+
+  - job_name: 'hft-risk-manager-service'
+    static_configs:
+      - targets: ['risk-manager-service:8005']
+    scrape_interval: 5s  # High frequency for risk monitoring
+    metrics_path: '/metrics'
+    scrape_timeout: 10s
+    honor_labels: true
+
+  # Infrastructure services
+  - job_name: 'kafka-exporter'
+    static_configs:
+      - targets: ['kafka-exporter:9308']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  - job_name: 'redis-exporter'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # Node exporter for system metrics
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # Docker container metrics
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+# Remote write configuration (optional - for long-term storage)
+# remote_write:
+#   - url: "http://victoriametrics:8428/api/v1/write"
+#     queue_config:
+#       max_samples_per_send: 10000
+#       capacity: 20000
+#       max_shards: 30
+
+# Storage configuration
+storage:
+  tsdb:
+    retention.time: 30d
+    retention.size: 10GB
+    wal-compression: true

@@ -1,0 +1,210 @@
+# Prometheus alerting rules for HFT system
+
+groups:
+  - name: hft_trading_alerts
+    rules:
+      # Trading halt alerts
+      - alert: TradingHalted
+        expr: trading_halted == 1
+        for: 0s
+        labels:
+          severity: critical
+          category: trading
+        annotations:
+          summary: "Trading has been halted for {{ $labels.service }}"
+          description: "Trading halt detected on {{ $labels.service }}. Immediate attention required."
+
+      # Large drawdown alerts
+      - alert: HighDrawdown
+        expr: current_drawdown_percent > 10
+        for: 1m
+        labels:
+          severity: critical
+          category: risk
+        annotations:
+          summary: "High drawdown detected: {{ $value }}%"
+          description: "Current drawdown is {{ $value }}% on {{ $labels.service }}, exceeding 10% threshold."
+
+      # Daily loss limit alerts
+      - alert: DailyLossLimit
+        expr: increase(realized_pnl_total[1d]) < -5000
+        for: 0s
+        labels:
+          severity: critical
+          category: risk
+        annotations:
+          summary: "Daily loss limit approached"
+          description: "Daily realized P&L is {{ $value }}, approaching loss limits."
+
+      # Position concentration alerts
+      - alert: HighConcentrationRisk
+        expr: concentration_risk_percent > 25
+        for: 5m
+        labels:
+          severity: warning
+          category: risk
+        annotations:
+          summary: "High concentration risk: {{ $value }}%"
+          description: "Position concentration is {{ $value }}% for {{ $labels.symbol }}, exceeding 25% threshold."
+
+      # Changepoint detection alerts
+      - alert: HighChangepointProbability
+        expr: changepoint_probability > 0.8
+        for: 2m
+        labels:
+          severity: warning
+          category: market
+        annotations:
+          summary: "High changepoint probability detected"
+          description: "Changepoint probability is {{ $value }} for {{ $labels.symbol }}, indicating potential regime change."
+
+  - name: hft_system_alerts
+    rules:
+      # Service health alerts
+      - alert: ServiceDown
+        expr: service_up == 0
+        for: 30s
+        labels:
+          severity: critical
+          category: system
+        annotations:
+          summary: "Service {{ $labels.service }} is down"
+          description: "Service {{ $labels.service }} has been down for more than 30 seconds."
+
+      # High error rate alerts
+      - alert: HighErrorRate
+        expr: rate(errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "High error rate on {{ $labels.service }}"
+          description: "Error rate is {{ $value }} errors/sec on {{ $labels.service }}."
+
+      # High latency alerts
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(request_duration_seconds_bucket[5m])) > 1.0
+        for: 2m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "High latency on {{ $labels.service }}"
+          description: "95th percentile latency is {{ $value }}s on {{ $labels.service }}."
+
+      # Memory usage alerts
+      - alert: HighMemoryUsage
+        expr: memory_usage_percent > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "High memory usage on {{ $labels.service }}"
+          description: "Memory usage is {{ $value }}% on {{ $labels.service }}."
+
+      # CPU usage alerts
+      - alert: HighCPUUsage
+        expr: cpu_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "High CPU usage on {{ $labels.service }}"
+          description: "CPU usage is {{ $value }}% on {{ $labels.service }}."
+
+  - name: hft_data_alerts
+    rules:
+      # Data staleness alerts
+      - alert: StaleMarketData
+        expr: data_staleness_seconds > 60
+        for: 1m
+        labels:
+          severity: warning
+          category: data
+        annotations:
+          summary: "Stale market data for {{ $labels.symbol }}"
+          description: "Market data for {{ $labels.symbol }} is {{ $value }} seconds old."
+
+      # Connection alerts
+      - alert: DataConnectionLost
+        expr: connection_status == 0
+        for: 30s
+        labels:
+          severity: critical
+          category: data
+        annotations:
+          summary: "Data connection lost to {{ $labels.source }}"
+          description: "Connection to {{ $labels.source }} has been lost for more than 30 seconds."
+
+      # Message processing alerts
+      - alert: LowMessageThroughput
+        expr: rate(messages_processed_total[5m]) < 10
+        for: 2m
+        labels:
+          severity: warning
+          category: data
+        annotations:
+          summary: "Low message throughput on {{ $labels.service }}"
+          description: "Message processing rate is {{ $value }} msg/sec, below expected threshold."
+
+  - name: hft_kafka_alerts
+    rules:
+      # Kafka lag alerts
+      - alert: HighKafkaLag
+        expr: kafka_consumer_lag_sum > 1000
+        for: 1m
+        labels:
+          severity: warning
+          category: infrastructure
+        annotations:
+          summary: "High Kafka consumer lag"
+          description: "Kafka consumer lag is {{ $value }} messages for {{ $labels.topic }}."
+
+      # Kafka partition alerts
+      - alert: KafkaPartitionOffline
+        expr: kafka_topic_partition_leader == -1
+        for: 0s
+        labels:
+          severity: critical
+          category: infrastructure
+        annotations:
+          summary: "Kafka partition offline"
+          description: "Kafka partition {{ $labels.partition }} for topic {{ $labels.topic }} is offline."
+
+  - name: hft_business_alerts
+    rules:
+      # Trading performance alerts
+      - alert: LowWinRate
+        expr: win_rate < 40
+        for: 10m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Low win rate: {{ $value }}%"
+          description: "Win rate for {{ $labels.symbol }} is {{ $value }}%, below 40% threshold."
+
+      # Sharpe ratio alerts
+      - alert: LowSharpeRatio
+        expr: sharpe_ratio < 0.5
+        for: 15m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Low Sharpe ratio: {{ $value }}"
+          description: "Sharpe ratio for {{ $labels.symbol }} is {{ $value }}, below 0.5 threshold."
+
+      # Volume alerts
+      - alert: LowTradingVolume
+        expr: rate(trade_volume_total[1h]) < 1000
+        for: 30m
+        labels:
+          severity: info
+          category: business
+        annotations:
+          summary: "Low trading volume"
+          description: "Trading volume is {{ $value }} over the last hour, below expected levels."
