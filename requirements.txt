@@ -51,6 +51,10 @@ redis==5.0.1
 pandas==2.1.4
 pyarrow==14.0.2
 
+# Risk Management & Changepoint Detection
+bayesian-changepoint-detection==0.1.0
+scipy==1.11.4
+
 # Kalman Filter and State Persistence
 pykalman==0.9.5
 joblib==1.3.2

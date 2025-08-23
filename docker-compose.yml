@@ -120,6 +120,58 @@ services:
     networks:
       - crypto-bot-network
 
+  # Risk Manager Service for Changepoint Detection
+  risk-manager-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: crypto-bot-risk-manager
+    command: ["python", "-m", "services.risk_manager.main"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8002:8002"  # Health check
+      - "8003:8003"  # Metrics
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_SPREAD_TOPIC=spread-data
+      - KAFKA_HALT_TOPIC=trading-halt
+      - KAFKA_RECOVERY_TOPIC=trading-recovery
+      - KAFKA_CONSUMER_GROUP=risk-manager-group
+      - BOCD_HAZARD_RATE=0.004  # 1/250
+      - BOCD_MAX_RUN_LENGTH=500
+      - BOCD_MIN_OBSERVATIONS=10
+      - USE_ADAPTIVE_BOCD=true
+      - WARNING_THRESHOLD=0.5
+      - HALT_THRESHOLD=0.7
+      - CRITICAL_THRESHOLD=0.9
+      - MIN_HALT_DURATION_MINUTES=5
+      - MAX_HALT_DURATION_HOURS=2
+      - RECOVERY_PROBABILITY_THRESHOLD=0.2
+      - HEALTH_CHECK_PORT=8002
+      - METRICS_PORT=8003
+      - REDIS_URL=redis://redis:6379
+      - SERVICE_NAME=risk-manager-service
+      - SERVICE_VERSION=1.0.0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - crypto-bot-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8002/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
   # Ingestion Service for Real-time Market Data
   ingestion-service:
     build:
