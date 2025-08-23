@@ -221,6 +221,41 @@ services:
       retries: 3
       start_period: 40s
 
+  # Execution Service for Trading Strategy Orchestration
+  execution-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: crypto-bot-execution
+    command: ["python", "-m", "services.execution.main"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      garch-volatility-service:
+        condition: service_started
+      kalman-filter-service:
+        condition: service_started
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - BINANCE_API_KEY=${BINANCE_API_KEY}
+      - BINANCE_SECRET_KEY=${BINANCE_SECRET_KEY}
+      - BINANCE_TESTNET=${BINANCE_TESTNET:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    networks:
+      - crypto-bot-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"print('Execution service running')\" || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
 volumes:
   zookeeper-data:
   zookeeper-logs:
