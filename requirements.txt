@@ -43,6 +43,10 @@ sqlalchemy==2.0.23
 alembic==1.13.1
 sqlite3; python_version >= '3.0'
 
+# Service Infrastructure
+aiohttp==3.9.1
+redis==5.0.1
+
 # Kalman Filter and State Persistence
 pykalman==0.9.5
 joblib==1.3.2

@@ -19,8 +19,18 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from src.config import settings
 from .filter import PairTradingKalmanFilter
 from .state import StateManager
+from common.logger import configure_logging, get_logger, get_trade_logger, get_performance_logger
 
-logger = structlog.get_logger(__name__)
+# Configure logging
+configure_logging(
+    service_name="kalman-filter-service",
+    log_level=settings.log_level,
+    log_format="json"
+)
+
+logger = get_logger(__name__)
+trade_logger = get_trade_logger("kalman-filter-service")
+perf_logger = get_performance_logger("kalman-filter-service")
 
 
 class KalmanFilterService:

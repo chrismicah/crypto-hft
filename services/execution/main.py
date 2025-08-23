@@ -21,8 +21,19 @@ from src.config import settings
 from .exchange import BinanceTestnetExchange, ExchangeManager
 from .signals import SignalGenerator, MarketData, TradingSignal, SignalType
 from .state_machine import StrategyStateMachine, TradingState, PositionSide
+from common.logger import configure_logging, get_logger, get_trade_logger, get_performance_logger
+from common.db import DatabaseClient
 
-logger = structlog.get_logger(__name__)
+# Configure logging
+configure_logging(
+    service_name="execution-service",
+    log_level=settings.log_level,
+    log_format="json"
+)
+
+logger = get_logger(__name__)
+trade_logger = get_trade_logger("execution-service")
+perf_logger = get_performance_logger("execution-service")
 
 
 class DataAggregator:

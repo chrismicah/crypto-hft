@@ -120,16 +120,19 @@ services:
     networks:
       - crypto-bot-network
 
-  # Main crypto bot application
-  crypto-bot:
+  # Ingestion Service for Real-time Market Data
+  ingestion-service:
     build:
       context: .
       dockerfile: Dockerfile
       target: production
-    container_name: crypto-bot-app
+    container_name: crypto-bot-ingestion
+    command: ["python", "-m", "services.ingestion.main"]
     depends_on:
       kafka:
         condition: service_healthy
+      redis:
+        condition: service_started
     ports:
       - "8000:8000"  # Prometheus metrics
       - "8001:8001"  # Health check
@@ -139,13 +142,17 @@ services:
       - BINANCE_TESTNET=${BINANCE_TESTNET:-true}
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - KAFKA_TOPIC_ORDER_BOOK=order_book_updates
-      - KAFKA_CLIENT_ID=crypto_hft_bot
-      - SYMBOLS=${SYMBOLS:-BTCUSDT,ETHUSDT}
+      - KAFKA_TOPIC_TRADE_TICKS=trade-ticks
+      - KAFKA_CLIENT_ID=ingestion-service
+      - SYMBOLS=${SYMBOLS:-BTCUSDT,ETHUSDT,ADAUSDT}
       - ORDER_BOOK_DEPTH=${ORDER_BOOK_DEPTH:-20}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - LOG_FORMAT=json
       - PROMETHEUS_PORT=8000
       - HEALTH_CHECK_PORT=8001
+      - SERVICE_NAME=ingestion-service
+      - SERVICE_VERSION=1.0.0
+      - REDIS_URL=redis://redis:6379
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data

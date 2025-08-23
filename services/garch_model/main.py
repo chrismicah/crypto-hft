@@ -20,8 +20,18 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from src.config import settings
 from .model import MultiPairGARCHManager, GARCHForecast
 from .thresholds import MultiPairThresholdManager, ThresholdSignal
+from common.logger import configure_logging, get_logger, get_trade_logger, get_performance_logger
 
-logger = structlog.get_logger(__name__)
+# Configure logging
+configure_logging(
+    service_name="garch-volatility-service",
+    log_level=settings.log_level,
+    log_format="json"
+)
+
+logger = get_logger(__name__)
+trade_logger = get_trade_logger("garch-volatility-service")
+perf_logger = get_performance_logger("garch-volatility-service")
 
 
 class GARCHVolatilityService:
