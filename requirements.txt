@@ -115,3 +115,26 @@ pytorch-lightning==2.1.2
 # Scientific Computing
 numba==0.58.1
 sparse==0.14.0
+
+# LLM and AI Analysis
+openai==1.3.7
+langchain==0.0.350
+langchain-openai==0.0.2
+langchain-community==0.0.10
+tiktoken==0.5.2
+
+# Natural Language Processing
+nltk==3.8.1
+spacy==3.7.2
+textstat==0.7.3
+
+# Advanced Analytics
+plotly==5.17.0
+dash==2.14.2
+dash-bootstrap-components==1.5.0
+dash-cytoscape==0.3.0
+
+# Statistical Analysis
+scipy==1.11.4
+statsmodels==0.14.1
+changepoint==0.2.4
