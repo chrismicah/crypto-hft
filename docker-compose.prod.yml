@@ -202,6 +202,34 @@ services:
         max_attempts: 3
         window: 180s
 
+  orchestrator-service:
+    environment:
+      - LOG_LEVEL=INFO
+      - EVOP_MAX_CHALLENGERS=${EVOP_MAX_CHALLENGERS:-5}  # More challengers in prod
+      - EVOP_MIN_EVALUATION_DAYS=${EVOP_MIN_EVALUATION_DAYS:-14}  # Longer evaluation
+      - EVOP_EVALUATION_FREQUENCY=${EVOP_EVALUATION_FREQUENCY:-12}  # Every 12 hours
+      - EVOP_CONFIDENCE_LEVEL=${EVOP_CONFIDENCE_LEVEL:-0.99}  # Higher confidence
+      - EVOP_MIN_SHARPE_IMPROVEMENT=${EVOP_MIN_SHARPE_IMPROVEMENT:-0.15}  # Higher bar
+      - EVOP_MIN_CALMAR_IMPROVEMENT=${EVOP_MIN_CALMAR_IMPROVEMENT:-0.15}
+      - EVOP_MAX_DRAWDOWN_TOLERANCE=${EVOP_MAX_DRAWDOWN_TOLERANCE:-0.10}  # Stricter
+      - EVOP_EMERGENCY_STOP_DRAWDOWN=${EVOP_EMERGENCY_STOP_DRAWDOWN:-0.20}  # Conservative
+      - CHAMPION_INITIAL_CAPITAL=${CHAMPION_INITIAL_CAPITAL:-500000.0}  # Production capital
+      - CHAMPION_MAX_POSITION_SIZE=${CHAMPION_MAX_POSITION_SIZE:-100000.0}
+      - CHAMPION_MAX_DAILY_LOSS=${CHAMPION_MAX_DAILY_LOSS:-25000.0}
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+        reservations:
+          memory: 2G
+          cpus: '1.5'
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 5
+        window: 300s
+
   # =============================================================================
   # PRODUCTION MONITORING OVERRIDES
   # =============================================================================

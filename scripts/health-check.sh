@@ -165,6 +165,7 @@ check_hft_services() {
         "garch-volatility-service:crypto-bot-garch-volatility:8002"
         "execution-service:crypto-bot-execution:8003"
         "risk-manager-service:crypto-bot-risk-manager:8004"
+        "orchestrator-service:crypto-bot-orchestrator:8005"
     )
     
     local failed=0

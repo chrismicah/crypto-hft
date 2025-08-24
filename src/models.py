@@ -1,4 +1,4 @@
-"""Data models for the crypto HFT bot."""
+
 
 from typing import List, Dict, Any, Optional
 from decimal import Decimal

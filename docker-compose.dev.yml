@@ -155,6 +155,24 @@ services:
       - "8004:8004"  # Expose metrics
       - "9004:9004"  # Debug port
 
+  orchestrator-service:
+    environment:
+      - LOG_LEVEL=DEBUG
+      - EVOP_MAX_CHALLENGERS=2  # Fewer challengers for dev
+      - EVOP_MIN_EVALUATION_DAYS=1  # Faster evaluation for testing
+      - EVOP_EVALUATION_FREQUENCY=1  # Evaluate every hour
+      - EVOP_CONFIDENCE_LEVEL=0.8  # Lower confidence for faster testing
+      - CHAMPION_INITIAL_CAPITAL=10000.0  # Smaller capital for dev
+      - ENABLE_DEBUG_LOGGING=true
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./services/orchestrator:/app/services/orchestrator:ro
+      - ./common:/app/common:ro
+    ports:
+      - "8005:8005"  # Expose API
+      - "9005:9005"  # Debug port
+
   # =============================================================================
   # DEVELOPMENT TOOLS
   # =============================================================================
