@@ -91,3 +91,27 @@ lightgbm==4.1.0
 ta==0.10.2
 pytz==2023.3
 dateutils==0.6.12
+
+# Graph Neural Networks & Deep Learning
+torch==2.1.0
+torch-geometric==2.4.0
+torch-scatter==2.1.2
+torch-sparse==0.6.18
+torch-cluster==1.6.3
+torch-spline-conv==1.2.2
+
+# Graph Analysis & Network Science
+networkx==3.2.1
+community==1.0.0b1
+igraph==0.11.3
+graph-tool; sys_platform != "win32"
+
+# Advanced ML & Research
+optuna==3.4.0
+wandb==0.16.0
+tensorboard==2.15.1
+pytorch-lightning==2.1.2
+
+# Scientific Computing
+numba==0.58.1
+sparse==0.14.0
