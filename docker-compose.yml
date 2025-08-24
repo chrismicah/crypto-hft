@@ -430,6 +430,54 @@ services:
         reservations:
           memory: 512M
 
+  # Regime Classifier Service for Market Regime Detection
+  regime-classifier-service:
+    build:
+      context: .
+      dockerfile: services/regime_classifier/Dockerfile
+    container_name: crypto-bot-regime-classifier
+    depends_on:
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8007:8007"  # Health check and metrics
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_MARKET_DATA_TOPIC=market-data
+      - KAFKA_REGIME_TOPIC=regime-classifications
+      - KAFKA_REGIME_ALERTS_TOPIC=regime-alerts
+      - KAFKA_CONSUMER_GROUP=regime-classifier-group
+      - CLASSIFICATION_INTERVAL=300  # 5 minutes
+      - FEATURE_LOOKBACK_HOURS=168  # 1 week
+      - HMM_N_COMPONENTS=6
+      - MIN_CONFIDENCE_THRESHOLD=0.3
+      - RETRAIN_FREQUENCY=168  # Weekly
+      - TRAINING_WINDOW=2160  # 90 days
+      - REGIME_PERSISTENCE=3
+      - TRANSITION_SMOOTHING=0.1
+      - REDIS_URL=redis://redis:6379
+      - SERVICE_NAME=regime-classifier
+      - SERVICE_VERSION=1.0.0
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_FORMAT=json
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+      - ./models:/app/models
+    networks:
+      - crypto-bot-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
   # Orchestrator Service for EVOP Framework
   orchestrator-service:
     build:
