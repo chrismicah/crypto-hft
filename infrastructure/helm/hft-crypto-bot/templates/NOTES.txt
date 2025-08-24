@@ -1,0 +1,86 @@
+🚀 HFT Crypto Bot has been deployed successfully!
+
+📊 Application Details:
+   Namespace: {{ .Values.global.namespace }}
+   Environment: {{ .Values.global.environment }}
+   Version: {{ .Chart.AppVersion }}
+
+🔗 Services:
+{{- if .Values.services.ingestion.enabled }}
+   📡 Ingestion Service: http://ingestion-service:{{ .Values.services.ingestion.service.port }}
+{{- end }}
+{{- if .Values.services.kalmanFilter.enabled }}
+   📈 Kalman Filter: http://kalman-filter-service:{{ .Values.services.kalmanFilter.service.port }}
+{{- end }}
+{{- if .Values.services.garchModel.enabled }}
+   📊 GARCH Model: http://garch-model-service:{{ .Values.services.garchModel.service.port }}
+{{- end }}
+{{- if .Values.services.execution.enabled }}
+   ⚡ Execution Service: http://execution-service:{{ .Values.services.execution.service.port }}
+{{- end }}
+{{- if .Values.services.riskManager.enabled }}
+   🛡️  Risk Manager: http://risk-manager-service:{{ .Values.services.riskManager.service.port }}
+{{- end }}
+{{- if .Values.services.orchestrator.enabled }}
+   🧬 Orchestrator (EVOP): http://orchestrator-service:{{ .Values.services.orchestrator.service.port }}
+{{- end }}
+
+{{- if .Values.monitoring.enabled }}
+📈 Monitoring Stack:
+{{- if .Values.monitoring.grafana.enabled }}
+   📊 Grafana Dashboard: http://grafana:3000
+   Default credentials: admin / {{ .Values.monitoring.grafana.adminPassword }}
+{{- end }}
+{{- if .Values.monitoring.prometheus.enabled }}
+   📏 Prometheus: http://prometheus:9090
+{{- end }}
+{{- if .Values.monitoring.alertmanager.enabled }}
+   🚨 AlertManager: http://alertmanager:9093
+{{- end }}
+{{- end }}
+
+🔍 Health Checks:
+   To check the status of all services:
+   $ kubectl get pods -n {{ .Values.global.namespace }}
+   
+   To view service logs:
+   $ kubectl logs -f deployment/<service-name> -n {{ .Values.global.namespace }}
+
+{{- if .Values.services.orchestrator.enabled }}
+🧬 EVOP Framework:
+   The Evolutionary Operation framework is running with:
+   - Max Challengers: {{ .Values.services.orchestrator.env.EVOP_MAX_CHALLENGERS }}
+   - Initial Capital: ${{ .Values.services.orchestrator.env.CHAMPION_INITIAL_CAPITAL }}
+   - Confidence Level: {{ .Values.services.orchestrator.env.EVOP_CONFIDENCE_LEVEL }}
+   
+   Access the orchestrator API:
+   $ kubectl port-forward service/orchestrator-service {{ .Values.services.orchestrator.service.port }}:{{ .Values.services.orchestrator.service.port }} -n {{ .Values.global.namespace }}
+   $ curl http://localhost:{{ .Values.services.orchestrator.service.port }}/status
+{{- end }}
+
+⚡ Auto-scaling:
+{{- if .Values.services.ingestion.autoscaling.enabled }}
+   📡 Ingestion: {{ .Values.services.ingestion.autoscaling.minReplicas }}-{{ .Values.services.ingestion.autoscaling.maxReplicas }} replicas
+{{- end }}
+{{- if .Values.services.execution.autoscaling.enabled }}
+   ⚡ Execution: {{ .Values.services.execution.autoscaling.minReplicas }}-{{ .Values.services.execution.autoscaling.maxReplicas }} replicas
+{{- end }}
+
+🔧 Configuration:
+   To update configuration values:
+   $ helm upgrade {{ .Release.Name }} ./infrastructure/helm/hft-crypto-bot \
+     --set services.ingestion.replicaCount=5 \
+     --set global.environment=staging
+
+📚 Documentation:
+   - Architecture Guide: https://github.com/yourusername/crypto-bot/blob/main/docs/ARCHITECTURE.md
+   - EVOP Framework: https://github.com/yourusername/crypto-bot/blob/main/EVOP_FRAMEWORK_GUIDE.md
+   - CI/CD Pipeline: https://github.com/yourusername/crypto-bot/blob/main/CI_CD_GUIDE.md
+
+🆘 Support:
+   If you encounter issues:
+   1. Check pod status: kubectl get pods -n {{ .Values.global.namespace }}
+   2. View logs: kubectl logs -f deployment/<service> -n {{ .Values.global.namespace }}
+   3. Check events: kubectl get events -n {{ .Values.global.namespace }} --sort-by='.lastTimestamp'
+
+Happy Trading! 📈✨

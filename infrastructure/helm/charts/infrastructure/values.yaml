@@ -1,0 +1,178 @@
+# Infrastructure components configuration
+
+# Kafka configuration
+kafka:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: confluentinc/cp-kafka
+    tag: "7.4.0"
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 9092
+    internalPort: 29092
+  
+  persistence:
+    enabled: true
+    storageClass: "standard"
+    size: 50Gi
+    accessMode: ReadWriteOnce
+  
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "1000m"
+    limits:
+      memory: "4Gi"
+      cpu: "4000m"
+  
+  config:
+    brokerId: 1
+    numPartitions: 3
+    replicationFactor: 1
+    autoCreateTopics: true
+    logRetentionHours: 168  # 7 days
+    numNetworkThreads: 8
+    numIoThreads: 16
+    socketSendBufferBytes: 102400
+    socketReceiveBufferBytes: 102400
+  
+  livenessProbe:
+    exec:
+      command:
+        - sh
+        - -ec
+        - /usr/bin/kafka-broker-api-versions --bootstrap-server localhost:9092
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    exec:
+      command:
+        - sh
+        - -ec
+        - /usr/bin/kafka-broker-api-versions --bootstrap-server localhost:9092
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 2
+
+# Zookeeper configuration
+zookeeper:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: confluentinc/cp-zookeeper
+    tag: "7.4.0"
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 2181
+  
+  persistence:
+    enabled: true
+    storageClass: "standard"
+    size: 10Gi
+    accessMode: ReadWriteOnce
+  
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  
+  config:
+    clientPort: 2181
+    tickTime: 2000
+    dataDir: /var/lib/zookeeper/data
+    dataLogDir: /var/lib/zookeeper/log
+  
+  livenessProbe:
+    exec:
+      command:
+        - sh
+        - -ec
+        - echo ruok | nc localhost 2181 | grep imok
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    exec:
+      command:
+        - sh
+        - -ec
+        - echo ruok | nc localhost 2181 | grep imok
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 2
+
+# Redis configuration
+redis:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  
+  service:
+    type: ClusterIP
+    port: 6379
+  
+  persistence:
+    enabled: true
+    storageClass: "standard"
+    size: 10Gi
+    accessMode: ReadWriteOnce
+  
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+  
+  config:
+    appendonly: "yes"
+    maxmemory: "512mb"
+    maxmemoryPolicy: "allkeys-lru"
+  
+  livenessProbe:
+    exec:
+      command:
+        - redis-cli
+        - ping
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  
+  readinessProbe:
+    exec:
+      command:
+        - redis-cli
+        - ping
+    initialDelaySeconds: 15
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 2
+
+# Common configuration
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Network policies
+networkPolicy:
+  enabled: true

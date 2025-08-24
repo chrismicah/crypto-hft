@@ -1,0 +1,408 @@
+# Global configuration values for HFT Crypto Bot
+global:
+  # Container registry settings
+  registry: docker.io
+  repository: hft-crypto-bot
+  tag: "latest"
+  pullPolicy: IfNotPresent
+  pullSecrets: []
+  
+  # Kubernetes settings
+  namespace: hft-production
+  createNamespace: true
+  
+  # Environment configuration
+  environment: production
+  
+  # Resource defaults
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "2000m"
+  
+  # Security context
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1001
+    fsGroup: 1001
+    
+  # Service mesh configuration  
+  serviceMesh:
+    enabled: false
+    
+  # Storage configuration
+  persistence:
+    enabled: true
+    storageClass: "standard"
+    accessMode: ReadWriteOnce
+    size: 10Gi
+    
+  # Monitoring configuration
+  monitoring:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+
+# Infrastructure components
+infrastructure:
+  enabled: true
+  
+  # Kafka configuration
+  kafka:
+    enabled: true
+    replicaCount: 1
+    persistence:
+      enabled: true
+      size: 50Gi
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "4000m"
+    config:
+      numPartitions: 3
+      replicationFactor: 1
+      autoCreateTopics: true
+      logRetentionHours: 168  # 7 days
+      
+  # Zookeeper configuration
+  zookeeper:
+    enabled: true
+    replicaCount: 1
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+        
+  # Redis configuration
+  redis:
+    enabled: true
+    replicaCount: 1
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+
+# Core trading services
+services:
+  # Ingestion service
+  ingestion:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: hft-crypto-bot-ingestion
+      tag: "latest"
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 10
+      targetCPUUtilizationPercentage: 70
+      targetMemoryUtilizationPercentage: 80
+    service:
+      type: ClusterIP
+      port: 8000
+    env:
+      WEBSOCKET_CONNECTIONS: "10"
+      KAFKA_BATCH_SIZE: "100"
+      
+  # Kalman Filter service  
+  kalmanFilter:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: hft-crypto-bot-kalman_filter
+      tag: "latest"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "4000m"
+    autoscaling:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 5
+      targetCPUUtilizationPercentage: 80
+    service:
+      type: ClusterIP
+      port: 8001
+    env:
+      KALMAN_BATCH_SIZE: "50"
+      KALMAN_UPDATE_FREQ: "1000"
+      
+  # GARCH Model service
+  garchModel:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: hft-crypto-bot-garch_model
+      tag: "latest"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "4000m"
+    autoscaling:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 3
+      targetCPUUtilizationPercentage: 85
+    service:
+      type: ClusterIP
+      port: 8002
+    env:
+      GARCH_WINDOW: "500"
+      GARCH_UPDATE_FREQ: "5000"
+      
+  # Execution service
+  execution:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: hft-crypto-bot-execution
+      tag: "latest"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "1000m"
+      limits:
+        memory: "4Gi"
+        cpu: "4000m"
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 75
+    service:
+      type: ClusterIP
+      port: 8003
+    env:
+      MAX_POSITION_SIZE: "100000"
+      MAX_DAILY_LOSS: "25000"
+      ENABLE_PAPER_TRADING: "false"
+      
+  # Risk Manager service
+  riskManager:
+    enabled: true
+    replicaCount: 2
+    image:
+      repository: hft-crypto-bot-risk_manager
+      tag: "latest"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "1000m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+    autoscaling:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 4
+      targetCPUUtilizationPercentage: 80
+    service:
+      type: ClusterIP
+      port: 8004
+    env:
+      BOCD_HAZARD_RATE: "0.004"
+      WARNING_THRESHOLD: "0.5"
+      HALT_THRESHOLD: "0.7"
+      
+  # Orchestrator service (EVOP Framework)
+  orchestrator:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: hft-crypto-bot-orchestrator
+      tag: "latest"
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1500m"
+      limits:
+        memory: "8Gi"
+        cpu: "6000m"
+    autoscaling:
+      enabled: false  # Single instance for strategy coordination
+    service:
+      type: LoadBalancer
+      port: 8005
+    env:
+      EVOP_MAX_CHALLENGERS: "5"
+      EVOP_CHALLENGER_CAPITAL_FRACTION: "0.2"
+      EVOP_MIN_EVALUATION_DAYS: "14"
+      EVOP_CONFIDENCE_LEVEL: "0.99"
+      CHAMPION_INITIAL_CAPITAL: "500000.0"
+      
+  # On-Chain Data service
+  onchainData:
+    enabled: true
+    replicaCount: 1
+    image:
+      repository: hft-crypto-bot-onchain_data
+      tag: "latest"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "750m"
+      limits:
+        memory: "4Gi"
+        cpu: "3000m"
+    autoscaling:
+      enabled: false  # Single instance for data consistency
+    service:
+      type: ClusterIP
+      port: 8006
+    persistence:
+      enabled: true
+      size: 5Gi
+    env:
+      COLLECTION_INTERVAL: "3600"
+      SYMBOLS: "BTC,ETH,ADA,BNB,SOL"
+      LOOKBACK_DAYS: "30"
+      MODEL_RETRAIN_INTERVAL: "86400"
+      MIN_TRAINING_SAMPLES: "100"
+      ENABLE_MODEL_TRAINING: "true"
+      FEATURE_WINDOWS: "7,14,30"
+      VOLATILITY_WINDOWS: "7,14"
+
+# Monitoring and observability
+monitoring:
+  enabled: true
+  
+  # Prometheus configuration
+  prometheus:
+    enabled: true
+    replicaCount: 1
+    persistence:
+      enabled: true
+      size: 100Gi
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "1000m"
+      limits:
+        memory: "8Gi"
+        cpu: "4000m"
+    retention: 15d
+    
+  # Grafana configuration
+  grafana:
+    enabled: true
+    replicaCount: 1
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+    adminPassword: "admin123"
+    
+  # AlertManager configuration
+  alertmanager:
+    enabled: true
+    replicaCount: 1
+    persistence:
+      enabled: true
+      size: 10Gi
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+
+# Configuration and secrets
+config:
+  # Trading configuration
+  trading:
+    symbols: "BTCUSDT,ETHUSDT,ADAUSDT,BNBUSDT,SOLUSDT"
+    binanceTestnet: false
+    maxDrawdownPercent: 15
+    
+  # Kafka topics
+  kafka:
+    topics:
+      orderbook: "order-book-updates"
+      spreads: "spread-data"
+      signals: "trading-signals"
+      thresholds: "signals-thresholds"
+      trades: "trade-executions"
+      performance: "strategy-performance"
+      halt: "trading-halt"
+      configurations: "strategy-configurations"
+      
+  # Logging configuration
+  logging:
+    level: INFO
+    format: json
+    
+  # Database configuration
+  database:
+    type: sqlite
+    path: "/data/trading.db"
+
+# Secrets (to be provided via external secret management)
+secrets:
+  binance:
+    apiKey: ""  # Will be populated by external secret operator
+    secretKey: ""
+  
+  slack:
+    webhookUrl: ""
+    
+  registry:
+    credentials: ""
+
+# Network policies
+networkPolicy:
+  enabled: true
+  
+# Pod disruption budgets
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Service mesh (Istio) configuration
+istio:
+  enabled: false
+  virtualService:
+    enabled: false
+  destinationRule:
+    enabled: false
+  peerAuthentication:
+    enabled: false

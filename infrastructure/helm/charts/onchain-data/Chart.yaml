@@ -1,0 +1,15 @@
+apiVersion: v2
+name: onchain-data
+description: On-Chain Data Ingestion and Signal Generation Service for HFT Crypto Bot
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - trading
+  - onchain
+  - blockchain
+  - signals
+  - machine-learning
+maintainers:
+  - name: HFT Development Team
+    email: dev@hft-crypto-bot.com

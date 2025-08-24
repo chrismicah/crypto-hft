@@ -1,0 +1,70 @@
+apiVersion: v2
+name: hft-crypto-bot
+description: High-Frequency Trading Crypto Bot - Complete Application Stack
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - trading
+  - cryptocurrency
+  - high-frequency
+  - microservices
+  - fintech
+home: https://github.com/yourusername/crypto-bot
+sources:
+  - https://github.com/yourusername/crypto-bot
+maintainers:
+  - name: HFT Development Team
+    email: dev@hft-crypto-bot.com
+icon: https://raw.githubusercontent.com/yourusername/crypto-bot/main/docs/images/logo.png
+
+# Dependencies on subchart components
+dependencies:
+  - name: infrastructure
+    version: "1.0.0"
+    repository: "file://../charts/infrastructure"
+    condition: infrastructure.enabled
+  
+  - name: ingestion
+    version: "1.0.0"  
+    repository: "file://../charts/ingestion"
+    condition: services.ingestion.enabled
+    
+  - name: kalman-filter
+    version: "1.0.0"
+    repository: "file://../charts/kalman-filter"
+    condition: services.kalmanFilter.enabled
+    
+  - name: garch-model
+    version: "1.0.0"
+    repository: "file://../charts/garch-model"
+    condition: services.garchModel.enabled
+    
+  - name: execution
+    version: "1.0.0"
+    repository: "file://../charts/execution"
+    condition: services.execution.enabled
+    
+  - name: risk-manager
+    version: "1.0.0"
+    repository: "file://../charts/risk-manager"
+    condition: services.riskManager.enabled
+    
+  - name: orchestrator
+    version: "1.0.0"
+    repository: "file://../charts/orchestrator"
+    condition: services.orchestrator.enabled
+    
+  - name: monitoring
+    version: "1.0.0"
+    repository: "file://../charts/monitoring"
+    condition: monitoring.enabled
+    
+  - name: onchain-data
+    version: "1.0.0"
+    repository: "file://../charts/onchain-data"
+    condition: services.onchainData.enabled
+
+annotations:
+  category: Trading
+  licenses: Apache-2.0

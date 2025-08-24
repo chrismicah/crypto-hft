@@ -1,0 +1,125 @@
+# Default values for onchain-data service
+replicaCount: 1
+
+image:
+  repository: hft-crypto-bot-onchain_data
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 8006
+
+resources:
+  requests:
+    memory: "1Gi"
+    cpu: "750m"
+  limits:
+    memory: "4Gi"
+    cpu: "3000m"
+
+autoscaling:
+  enabled: false  # Single instance for data consistency
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 2
+
+# Environment variables
+env:
+  SERVICE_NAME: "onchain-data"
+  SERVICE_PORT: "8006"
+  METRICS_PORT: "8006"
+  
+  # Data collection settings
+  COLLECTION_INTERVAL: "3600"  # 1 hour
+  SYMBOLS: "BTC,ETH,ADA,BNB,SOL"
+  LOOKBACK_DAYS: "30"
+  
+  # API settings (secrets should be provided via external secret management)
+  GLASSNODE_API_KEY: ""
+  CRYPTOQUANT_API_KEY: ""
+  API_RATE_LIMIT_PER_MINUTE: "100"
+  
+  # Kafka topics
+  KAFKA_TOPIC_ONCHAIN_METRICS: "onchain-metrics"
+  KAFKA_TOPIC_ONCHAIN_SIGNALS: "onchain-signals"
+  KAFKA_TOPIC_ONCHAIN_ALERTS: "onchain-alerts"
+  
+  # ML model settings
+  MODEL_RETRAIN_INTERVAL: "86400"  # 24 hours
+  MIN_TRAINING_SAMPLES: "100"
+  ENABLE_MODEL_TRAINING: "true"
+  MODEL_SAVE_PATH: "/app/data/onchain_models.pkl"
+  
+  # Feature engineering
+  FEATURE_WINDOWS: "7,14,30"
+  VOLATILITY_WINDOWS: "7,14"
+
+# Persistent storage for models and cache
+persistence:
+  enabled: true
+  storageClass: "standard"
+  accessMode: ReadWriteOnce
+  size: 5Gi
+  mountPath: "/app/data"
+
+# Node selection
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  # Prefer nodes with high memory for ML workloads
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+    - weight: 100
+      preference:
+        matchExpressions:
+        - key: node-type
+          operator: In
+          values:
+          - memory-optimized
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8006"
+  prometheus.io/path: "/metrics"
+
+serviceMonitor:
+  enabled: true
+  interval: 30s
+  scrapeTimeout: 10s
+
+# Configuration for external secrets (API keys)
+externalSecrets:
+  enabled: false
+  # When enabled, API keys should be injected via external secret operators
+  secretName: "onchain-data-secrets"
+  keys:
+    - name: "GLASSNODE_API_KEY"
+      key: "glassnode-api-key"
+    - name: "CRYPTOQUANT_API_KEY"
+      key: "cryptoquant-api-key"
+
+# Init containers for data initialization
+initContainers:
+  enabled: false
+  # Can be used to pre-download historical data or warm up models
