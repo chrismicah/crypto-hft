@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hft-production
+  labels:
+    name: hft-production
+    environment: production
+    project: hft-crypto-bot

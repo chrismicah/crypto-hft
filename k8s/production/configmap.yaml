@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hft-config
+  namespace: hft-production
+data:
+  # Environment
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+  
+  # Kafka Configuration
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+  KAFKA_AUTO_CREATE_TOPICS: "true"
+  
+  # Trading Configuration
+  BINANCE_TESTNET: "false"
+  SYMBOLS: "BTCUSDT,ETHUSDT,ADAUSDT,BNBUSDT,SOLUSDT"
+  MAX_POSITION_SIZE: "100000"
+  MAX_DAILY_LOSS: "25000"
+  MAX_DRAWDOWN_PERCENT: "15"
+  ENABLE_PAPER_TRADING: "false"
+  
+  # EVOP Configuration
+  EVOP_MAX_CHALLENGERS: "5"
+  EVOP_CHALLENGER_CAPITAL_FRACTION: "0.2"
+  EVOP_MIN_EVALUATION_DAYS: "14"
+  EVOP_CONFIDENCE_LEVEL: "0.99"
+  EVOP_EVALUATION_FREQUENCY: "12"
+  CHAMPION_INITIAL_CAPITAL: "500000.0"
+  
+  # Model Parameters
+  KALMAN_BATCH_SIZE: "10"
+  KALMAN_UPDATE_FREQ: "1000"
+  GARCH_WINDOW: "100"
+  GARCH_UPDATE_FREQ: "5000"
+  
+  # Risk Management
+  BOCD_HAZARD_RATE: "0.01"
+  WARNING_THRESHOLD: "0.3"
+  HALT_THRESHOLD: "0.5"
+  CRITICAL_THRESHOLD: "0.7"
+  
+  # Redis Configuration
+  REDIS_URL: "redis://redis:6379"

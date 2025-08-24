@@ -1,0 +1,522 @@
+---
+# Ingestion Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingestion-service
+  namespace: hft-staging
+  labels:
+    app: ingestion-service
+    component: hft-core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ingestion-service
+  template:
+    metadata:
+      labels:
+        app: ingestion-service
+    spec:
+      containers:
+      - name: ingestion
+        image: docker.io/hft-crypto-bot-ingestion:latest
+        ports:
+        - containerPort: 8000
+          name: metrics
+        envFrom:
+        - configMapRef:
+            name: hft-config
+        - secretRef:
+            name: hft-secrets
+        env:
+        - name: SERVICE_NAME
+          value: "ingestion"
+        - name: METRICS_PORT
+          value: "8000"
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: logs
+        emptyDir: {}
+      - name: data
+        emptyDir: {}
+
+---
+# Ingestion Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingestion-service
+  namespace: hft-staging
+  labels:
+    app: ingestion-service
+spec:
+  ports:
+  - port: 8000
+    targetPort: 8000
+    name: metrics
+  selector:
+    app: ingestion-service
+
+---
+# Kalman Filter Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kalman-filter-service
+  namespace: hft-staging
+  labels:
+    app: kalman-filter-service
+    component: hft-core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kalman-filter-service
+  template:
+    metadata:
+      labels:
+        app: kalman-filter-service
+    spec:
+      containers:
+      - name: kalman-filter
+        image: docker.io/hft-crypto-bot-kalman_filter:latest
+        ports:
+        - containerPort: 8001
+          name: metrics
+        envFrom:
+        - configMapRef:
+            name: hft-config
+        - secretRef:
+            name: hft-secrets
+        env:
+        - name: SERVICE_NAME
+          value: "kalman-filter"
+        - name: METRICS_PORT
+          value: "8001"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 45
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 2
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: logs
+        emptyDir: {}
+      - name: data
+        emptyDir: {}
+
+---
+# Kalman Filter Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: kalman-filter-service
+  namespace: hft-staging
+  labels:
+    app: kalman-filter-service
+spec:
+  ports:
+  - port: 8001
+    targetPort: 8001
+    name: metrics
+  selector:
+    app: kalman-filter-service
+
+---
+# GARCH Model Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: garch-model-service
+  namespace: hft-staging
+  labels:
+    app: garch-model-service
+    component: hft-core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: garch-model-service
+  template:
+    metadata:
+      labels:
+        app: garch-model-service
+    spec:
+      containers:
+      - name: garch-model
+        image: docker.io/hft-crypto-bot-garch_model:latest
+        ports:
+        - containerPort: 8002
+          name: metrics
+        envFrom:
+        - configMapRef:
+            name: hft-config
+        - secretRef:
+            name: hft-secrets
+        env:
+        - name: SERVICE_NAME
+          value: "garch-model"
+        - name: METRICS_PORT
+          value: "8002"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          timeoutSeconds: 15
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8002
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 2
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: logs
+        emptyDir: {}
+      - name: data
+        emptyDir: {}
+
+---
+# GARCH Model Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: garch-model-service
+  namespace: hft-staging
+  labels:
+    app: garch-model-service
+spec:
+  ports:
+  - port: 8002
+    targetPort: 8002
+    name: metrics
+  selector:
+    app: garch-model-service
+
+---
+# Execution Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: execution-service
+  namespace: hft-staging
+  labels:
+    app: execution-service
+    component: hft-core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: execution-service
+  template:
+    metadata:
+      labels:
+        app: execution-service
+    spec:
+      containers:
+      - name: execution
+        image: docker.io/hft-crypto-bot-execution:latest
+        ports:
+        - containerPort: 8003
+          name: metrics
+        envFrom:
+        - configMapRef:
+            name: hft-config
+        - secretRef:
+            name: hft-secrets
+        env:
+        - name: SERVICE_NAME
+          value: "execution"
+        - name: METRICS_PORT
+          value: "8003"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8003
+          initialDelaySeconds: 45
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8003
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 2
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: logs
+        emptyDir: {}
+      - name: data
+        emptyDir: {}
+
+---
+# Execution Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: execution-service
+  namespace: hft-staging
+  labels:
+    app: execution-service
+spec:
+  ports:
+  - port: 8003
+    targetPort: 8003
+    name: metrics
+  selector:
+    app: execution-service
+
+---
+# Risk Manager Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: risk-manager-service
+  namespace: hft-staging
+  labels:
+    app: risk-manager-service
+    component: hft-core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: risk-manager-service
+  template:
+    metadata:
+      labels:
+        app: risk-manager-service
+    spec:
+      containers:
+      - name: risk-manager
+        image: docker.io/hft-crypto-bot-risk_manager:latest
+        ports:
+        - containerPort: 8004
+          name: metrics
+        envFrom:
+        - configMapRef:
+            name: hft-config
+        - secretRef:
+            name: hft-secrets
+        env:
+        - name: SERVICE_NAME
+          value: "risk-manager"
+        - name: METRICS_PORT
+          value: "8004"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8004
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          timeoutSeconds: 15
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8004
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 2
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: logs
+        emptyDir: {}
+      - name: data
+        emptyDir: {}
+
+---
+# Risk Manager Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: risk-manager-service
+  namespace: hft-staging
+  labels:
+    app: risk-manager-service
+spec:
+  ports:
+  - port: 8004
+    targetPort: 8004
+    name: metrics
+  selector:
+    app: risk-manager-service
+
+---
+# Orchestrator Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestrator-service
+  namespace: hft-staging
+  labels:
+    app: orchestrator-service
+    component: hft-core
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: orchestrator-service
+  template:
+    metadata:
+      labels:
+        app: orchestrator-service
+    spec:
+      containers:
+      - name: orchestrator
+        image: docker.io/hft-crypto-bot-orchestrator:latest
+        ports:
+        - containerPort: 8005
+          name: api
+        envFrom:
+        - configMapRef:
+            name: hft-config
+        - secretRef:
+            name: hft-secrets
+        env:
+        - name: SERVICE_NAME
+          value: "orchestrator"
+        - name: ORCHESTRATOR_PORT
+          value: "8005"
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "750m"
+          limits:
+            memory: "2Gi"
+            cpu: "1500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8005
+          initialDelaySeconds: 60
+          periodSeconds: 20
+          timeoutSeconds: 15
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8005
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 10
+          failureThreshold: 2
+        volumeMounts:
+        - name: logs
+          mountPath: /app/logs
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: logs
+        emptyDir: {}
+      - name: data
+        emptyDir: {}
+
+---
+# Orchestrator Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestrator-service
+  namespace: hft-staging
+  labels:
+    app: orchestrator-service
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8005
+    targetPort: 8005
+    name: api
+  selector:
+    app: orchestrator-service
